@@ -1,4 +1,4 @@
-package wsstomp
+package stomp
 
 import (
 	"errors"
