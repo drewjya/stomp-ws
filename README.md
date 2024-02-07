@@ -1,10 +1,10 @@
-# stomp-ws
+# wsstomp
 
 Go language implementation of STOMP protocol on top of Websocket (gorilla).
 
 ## Usage Instructions 
 ```
-go get github.com/drewjya/stomp-ws/v0.0.1
+go get github.com/drewjya/wsstomp/v0.0.1
 ```
 
 ## License
