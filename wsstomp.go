@@ -1,4 +1,4 @@
-package stomp
+package wsstomp
 
 import (
 	"errors"
@@ -15,31 +15,31 @@ var (
 	upgrader = websocket.Upgrader{}
 )
 
-func New(w http.ResponseWriter, r *http.Request, responseHeader http.Header) *Stomp {
-	return &Stomp{
+func New(w http.ResponseWriter, r *http.Request, responseHeader http.Header) *WsStomp {
+	return &WsStomp{
 		writer:         w,
 		request:        r,
 		responseHeader: responseHeader,
 	}
 }
 
-type Stomp struct {
+type WsStomp struct {
 	writer         http.ResponseWriter
 	request        *http.Request
 	responseHeader http.Header
 }
 
-type StompFunc = func() error
-type StompRequestType struct {
+type WsStompFunc = func() error
+type WsStompRequestType struct {
 	Destination string
-	Handler     StompFunc
+	Handler     WsStompFunc
 }
 
-func (s *Stomp) Send(message string, destination string) error {
+func (s *WsStomp) Send(message string, destination string) error {
 	return nil
 }
 
-func (s *Stomp) Connect() error {
+func (s *WsStomp) Connect() error {
 	ws, err := upgrader.Upgrade(s.writer, s.request, s.responseHeader)
 	if err != nil {
 		return err
@@ -73,12 +73,14 @@ func handleSTOMPMessage(message []byte, ws *websocket.Conn) error {
 		// Handle client disconnection.
 		// Clean up resources, close connection, etc.
 	case "SUBSCRIBE":
+
 		// Handle subscription to a destination.
 		// Track subscription ID and destination for message dispatching.
 	case "UNSUBSCRIBE":
 		// Handle unsubscription from a destination.
 		// Remove tracking of subscription ID.
 	case "SEND":
+		
 		// Handle sending a message to a destination.
 		// Implement logic based on the destination in the headers.
 	case "BEGIN":
