@@ -123,7 +123,10 @@ func handleSTOMPMessage(sh stompHandler, handle Handler, destinations []string) 
 			return err
 		}
 		if slices.Contains(destinations, destination) {
-			sh.Manager.SendMessageToSubscribers(destination, response)
+			resp := []byte("MESSAGE\n")
+			resp = append(resp, response...)
+			resp = append(resp, []byte("\n\n\000")...)
+			sh.Manager.SendMessageToSubscribers(destination, resp)
 		} else {
 			return errors.New("invalid_destination")
 
