@@ -48,7 +48,7 @@ type stompHandler struct {
 	Manager *subscription.SubscriptionManager
 }
 
-type Handler = func([]byte, *subscription.SubscriptionManager) error
+type Handler = func(request []byte) (string, []byte, error)
 
 func (s *Stomp) Send(message string, destination string) error {
 	return nil
@@ -72,7 +72,7 @@ func (s *Stomp) Connect(handler Handler) error {
 }
 
 func handleSTOMPMessage(sh stompHandler, handle Handler, destinations []string) error {
-	
+
 	msg := string(sh.Message)
 	lines := strings.Split(msg, "\n")
 	if len(lines) < 2 {
@@ -118,7 +118,16 @@ func handleSTOMPMessage(sh stompHandler, handle Handler, destinations []string) 
 		}
 
 	case "SEND":
-		return handle(sh.Message, sh.Manager)
+		destination, response, err := handle(sh.Message)
+		if err != nil {
+			return err
+		}
+		if slices.Contains(destinations, destination) {
+			sh.Manager.SendMessageToSubscribers(destination, response)
+		} else {
+			return errors.New("invalid_destination")
+
+		}
 
 	case "BEGIN":
 		sh.Ws.WriteMessage(200, []byte("ACK\n\n\000"))
