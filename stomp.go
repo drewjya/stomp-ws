@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/drewjya/stomp-ws/lib/subscription"
@@ -11,6 +12,10 @@ import (
 )
 
 type Map map[string]interface{}
+
+type Config struct {
+	Destinations []string
+}
 
 var (
 	upgrader = websocket.Upgrader{}
@@ -28,6 +33,7 @@ type Stomp struct {
 	writer         http.ResponseWriter
 	request        *http.Request
 	responseHeader http.Header
+	config         Config
 }
 
 type WsStompFunc = func() error
@@ -61,12 +67,13 @@ func (s *Stomp) Connect(handler Handler) error {
 		if err != nil {
 			return err
 		}
-		handleSTOMPMessage(stompHandler{Message: message, Ws: ws, Manager: manager}, handler)
+		handleSTOMPMessage(stompHandler{Message: message, Ws: ws, Manager: manager}, handler, s.config.Destinations)
 	}
 }
 
-func handleSTOMPMessage(handler stompHandler, handle Handler) error {
-	msg := string(handler.Message)
+func handleSTOMPMessage(sh stompHandler, handle Handler, destinations []string) error {
+	
+	msg := string(sh.Message)
 	lines := strings.Split(msg, "\n")
 	if len(lines) < 2 {
 		return errors.New("invalid_message")
@@ -74,59 +81,63 @@ func handleSTOMPMessage(handler stompHandler, handle Handler) error {
 	command := lines[0]
 	switch command {
 	case "CONNECT", "STOMP":
-		handler.Ws.WriteMessage(200, []byte("CONNECTED\nversion:1.2\n\n\000"))
+		sh.Ws.WriteMessage(200, []byte("CONNECTED\nversion:1.2\n\n\000"))
 
 		// Handle client connection request.
 		// Typically involves authentication and acknowledging the connection.
 		// Example: conn.WriteMessage(websocket.TextMessage, []byte("CONNECTED\nversion:1.2\n\n\000"))
 	case "DISCONNECT":
-		handler.Manager.RemoveAllSubscriptions(handler.Ws)
-		return handler.Ws.Close()
+		sh.Manager.RemoveAllSubscriptions(sh.Ws)
+		return sh.Ws.Close()
 		// Handle client disconnection.
 		// Clean up resources, close connection, etc.
 	case "SUBSCRIBE":
 		destination := ""
 		for _, v := range lines {
 			if strings.HasPrefix(v, "destination:") {
+
 				destination = strings.TrimPrefix(v, "destination:")
+				if !slices.Contains(destinations, destination) {
+					return errors.New("invalid_destination")
+				}
 				break
 			}
 		}
 		if destination == "" {
 			return errors.New("invalid_destination")
 		}
-		handler.Manager.AddSubscription(destination, handler.Ws)
+		sh.Manager.AddSubscription(destination, sh.Ws)
 
 	case "UNSUBSCRIBE":
 		for _, v := range lines {
 			if strings.HasPrefix(v, "id:") {
 				subscriptionId := strings.TrimPrefix(v, "id:")
-				handler.Manager.RemoveSubscription(subscriptionId, handler.Ws)
+				sh.Manager.RemoveSubscription(subscriptionId, sh.Ws)
 				break
 			}
 		}
 
 	case "SEND":
-		return handle(handler.Message, handler.Manager)
+		return handle(sh.Message, sh.Manager)
 
 	case "BEGIN":
-		handler.Ws.WriteMessage(200, []byte("ACK\n\n\000"))
+		sh.Ws.WriteMessage(200, []byte("ACK\n\n\000"))
 		// Handle the start of a transaction.
 		// Track transaction ID and related actions.
 	case "COMMIT":
-		handler.Ws.WriteMessage(200, []byte("COMMIT\n\n\000"))
+		sh.Ws.WriteMessage(200, []byte("COMMIT\n\n\000"))
 		// Handle committing a transaction.
 		// Process all actions collected under the transaction ID.
 	case "ABORT":
-		handler.Ws.WriteMessage(200, []byte("ABORT\n\n\000"))
+		sh.Ws.WriteMessage(200, []byte("ABORT\n\n\000"))
 		// Handle aborting a transaction.
 		// Discard all actions collected under the transaction ID.
 	case "ACK":
-		handler.Ws.WriteMessage(200, []byte("ACK\n\n\000"))
+		sh.Ws.WriteMessage(200, []byte("ACK\n\n\000"))
 		// Handle acknowledgment of a message processing.
 		// Typically used in conjunction with client-individual acknowledgment mode.
 	case "NACK":
-		handler.Ws.WriteMessage(200, []byte("NACK\n\n\000"))
+		sh.Ws.WriteMessage(200, []byte("NACK\n\n\000"))
 		// Handle negative acknowledgment of a message processing.
 		// Indicate that a message was not processed successfully.
 	default:
